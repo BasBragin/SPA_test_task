@@ -24,6 +24,7 @@ from src.part2.forecast import fill_missing, forecast_demand
 from src.part3 import formatter
 from src.part3.config import (
     ANSWER_CONFIDENCE_BASE,
+    CONFIDENCE_UNKNOWN_THRESHOLD,
     INTENT_CONFIDENCE_THRESHOLD,
     PENALTY_AMBIGUOUS_INTENT,
     PENALTY_MISSING_PERIOD,
@@ -69,6 +70,10 @@ def _compute_confidence(params: dict) -> float:
 
     if params.get("scenario_multiplier") is not None:
         confidence *= WHAT_IF_CONFIDENCE_PENALTY
+
+    # Если параметры неполные (будет уточнение) — уверенность ниже порога
+    if not _is_params_complete(intent, params):
+        confidence = min(confidence, CONFIDENCE_UNKNOWN_THRESHOLD - 0.1)
 
     return max(0.0, min(1.0, round(confidence, 4)))
 
@@ -135,6 +140,7 @@ def _collect_reorder_items(
                 "recommended_qty": r["recommended_qty"],
                 "cost": r["estimated_cost"],
                 "stockout_date": r["stockout_date"],
+                "period_days": period,
             })
 
     items.sort(key=lambda x: x["stockout_date"] or "9999")
@@ -167,6 +173,7 @@ def _collect_budget_items(
             "unit": item["unit"],
             "recommended_qty": r["recommended_qty"],
             "cost": r["estimated_cost"],
+            "period_days": period,
         })
     return items
 
@@ -207,6 +214,7 @@ def _collect_deficit_items(
                 "days_left": days_left,
                 "recommended_qty": r["recommended_qty"],
                 "cost": r["estimated_cost"],
+                "period_days": horizon,
             })
 
     items.sort(key=lambda x: x["stockout_date"] or "9999")
@@ -273,8 +281,11 @@ def _build_answer(
 
     if intent == "stock_check":
         sku = params["sku"]
+        location = params.get("location")
         result = forecast_demand(history, sku, 30, {"catalog": catalog})
-        return formatter.format_stock_check(sku, catalog[sku], result)
+        return formatter.format_stock_check(
+            sku, catalog[sku], result, location=location,
+        )
 
     if intent == "reorder_list":
         period = params.get("period_days") or 30

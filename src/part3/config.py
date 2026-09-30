@@ -103,6 +103,9 @@ PENALTY_MISSING_SKU: float = 0.3
 PENALTY_MISSING_PERIOD: float = 0.2
 PENALTY_AMBIGUOUS_INTENT: float = 0.4
 
+# Порог, ниже которого ответ помечается «требуется уточнение».
+CONFIDENCE_UNKNOWN_THRESHOLD: float = 0.6
+
 # ─── What-if сценарии ───────────────────────────────────────────────
 # Понижение уверенности при what-if (умножается на confidence).
 WHAT_IF_CONFIDENCE_PENALTY: float = 0.5

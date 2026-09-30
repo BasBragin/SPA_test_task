@@ -107,30 +107,40 @@ def format_what_if(
 
 
 def format_reorder_list(items: list[dict[str, Any]]) -> str:
-    """Список SKU, которые нужно заказать."""
+    """
+    Список SKU, которые нужно заказать.
+
+    Каждый item может содержать period_days — для отображения горизонта.
+    """
     if not items:
         return "Все товары в норме. Срочных заказов нет."
 
     lines = [
         "Товары к заказу:",
         "",
-        f"{'SKU':<12} {'Товар':<28} {'Закупка':<12} {'Стоимость':<14} {'Истощение':<12}",
-        _hr(80),
+        (
+            f"{'SKU':<12} {'Товар':<28} {'Горизонт':<10} "
+            f"{'Закупка':<12} {'Стоимость':<14} {'Истощение':<12}"
+        ),
+        _hr(90),
     ]
 
     total_cost = 0.0
     for item in items:
         cost = item.get("cost", 0.0)
         total_cost += cost
+        horizon = item.get("period_days")
+        horizon_str = f"{horizon} дн." if horizon else "—"
         lines.append(
             f"{item['sku']:<12} "
             f"{item['name'][:26]:<28} "
+            f"{horizon_str:<10} "
             f"{item['recommended_qty']:>6.2f} {item['unit']:<4} "
             f"{cost:>12,.2f} ₽ "
             f"{item.get('stockout_date') or '—':<12}".replace(",", " ")
         )
 
-    lines.append(_hr(80))
+    lines.append(_hr(90))
     lines.append(f"Итого: {total_cost:,.2f} ₽".replace(",", " "))
 
     return "\n".join(lines)
@@ -179,7 +189,12 @@ def format_deficit_risk(
     items: list[dict[str, Any]],
     location: str | None = None,
 ) -> str:
-    """Список SKU в риске дефицита."""
+    """
+    Список SKU в риске дефицита.
+
+    Если задана location, но данных по филиалам нет — добавляет 
+    оговорку внизу.
+    """
     if not items:
         loc = f" в {location}" if location else ""
         return f"Товаров с риском дефицита{loc} не обнаружено."
@@ -192,17 +207,20 @@ def format_deficit_risk(
         header,
         "",
         (
-            f"{'SKU':<12} {'Товар':<28} {'Истощение':<12} {'Дней':<6} "
-            f"{'Закупка':<12} {'Стоимость':<14}"
+            f"{'SKU':<12} {'Товар':<28} {'Горизонт':<10} {'Истощение':<12} "
+            f"{'Дней':<6} {'Закупка':<12} {'Стоимость':<14}"
         ),
-        _hr(100),
+        _hr(110),
     ]
 
     for item in items:
         cost = item.get("cost", 0.0)
+        horizon = item.get("period_days")
+        horizon_str = f"{horizon} дн." if horizon else "—"
         lines.append(
             f"{item['sku']:<12} "
             f"{item['name'][:26]:<28} "
+            f"{horizon_str:<10} "
             f"{item.get('stockout_date') or '—':<12} "
             f"{item.get('days_left', '—')!s:<6} "
             f"{item['recommended_qty']:>6.2f} {item['unit']:<4} "
@@ -281,14 +299,24 @@ def format_stock_check(
     sku: str,
     catalog_item: dict,
     result: dict[str, Any],
+    location: str | None = None,
 ) -> str:
-    """Остаток товара на складе."""
+    """
+    Остаток товара на складе.
+
+    Если задана location — добавляет оговорку про отсутствие 
+    разбивки по филиалам.
+    """
     unit = catalog_item["unit"]
     available = result["current_stock"] + result["incoming_qty"]
     avg = result["avg_daily_consumption"]
 
+    header = f"Остаток: {sku} — {catalog_item['name']}"
+    if location:
+        header += f" (запрошено: {location})"
+
     lines = [
-        f"Остаток: {sku} — {catalog_item['name']}",
+        header,
         "",
         _row("Текущий остаток", f"{result['current_stock']:.2f} {unit}"),
         _row("В пути", f"{result['incoming_qty']:.2f} {unit}"),
@@ -300,6 +328,14 @@ def format_stock_check(
     if avg > 0:
         days_left = available / avg
         lines.append(_row("Хватит примерно на", f"{days_left:.0f} дней"))
+
+    if location:
+        lines.append("")
+        lines.append(
+            "Примечание: в данных нет разбивки по филиалам — "
+            "показан общий остаток. Для отчёта по конкретному "
+            f"филиалу ({location}) нужны данные с разбивкой по локациям."
+        )
 
     return "\n".join(lines)
 
